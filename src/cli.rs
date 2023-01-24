@@ -10,7 +10,7 @@ A single number is parsed as SECONDS between movements. Numbers can \
 be specified as integers (e.g., 42) or floating point numbers (e.g., 0.42). \
 A single number argument must be a positive value.
 
-Warnings are emitted for any duration longer than 1 hour, as this is probably \
+Warnings are emitted for any duration longer than 1 minute, as this is probably \
 not intentional for most use cases.";
 
 const NO_ANIMATE_LONG_HELP: &str = "Do not animate mouse movements. Instead, \
@@ -28,6 +28,8 @@ you can use this option to ensure the mouse will continue moving where expected.
 
 WARNING: If '-a' is NOT specified, you won't be able to move your mouse until \
 this application is closed.";
+
+// TODO: add pause interval when mouse is in use
 
 pub fn build() -> Command {
     command!()

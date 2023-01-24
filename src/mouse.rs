@@ -1,5 +1,6 @@
 use crate::animation;
 
+use log::trace;
 use mouse_rs::types::Point;
 use mouse_rs::Mouse;
 use thiserror::Error;
@@ -104,13 +105,16 @@ impl MouseExt {
                 return Err(MouseError::Busy);
             }
 
-            // interpolate the animation and move the mouse
+            // interpolate the animation
             let t = elapsed.as_millis() as f64 / self.interval.as_millis() as f64;
             let new_pos = PointExt::lerp(start_pos, p, animation::ease_in_out(t));
-            println!("[DEBUG] [frame:{frame:3}] Moving to x={}, y={} (t: {t})", new_pos.x, new_pos.y);
-            self.inner.move_to(new_pos.x, new_pos.y)?;
 
-            last_pos = self.pos()?;
+            // only update mouse if the position will change
+            if new_pos != last_pos {
+                trace!("Animating movement (x={}, y={}, t={t:0.4}, frame={frame})", new_pos.x, new_pos.y);
+                self.inner.move_to(new_pos.x, new_pos.y)?;
+                last_pos = self.pos()?;
+            }
 
             // pause for the remainder of frame time to achieve target fps
             let dt = Instant::now() - f_start;

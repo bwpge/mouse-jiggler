@@ -5,12 +5,16 @@ mod mouse;
 use mouse::{MouseExt, PointExt};
 
 use anyhow::{anyhow, bail, Result};
-use log::{info, warn, error};
+use clap::ArgMatches;
+use fern::colors::{Color, ColoredLevelConfig};
+use log::{info, warn, error, LevelFilter};
 
 use std::time::Duration;
 
 fn main() {
     let matches = cli::build().get_matches();
+    init_logging(&matches);
+
     let interval = matches
         .get_one::<Duration>("INTERVAL")
         .expect("interval should be required by clap");
@@ -19,11 +23,13 @@ fn main() {
         .copied()
         .expect("fps should be required by clap");
 
-    if *interval > Duration::from_secs(3600) {
-        warn!("input interval is longer than 1 hour (got: {} seconds)", interval.as_secs())
-    }
-    if fps > 200 {
-        warn!("fps option may generate high CPU usage, if this becomes an issue consider lowering the value")
+    if !matches.get_flag("no-warn") {
+        if *interval > Duration::from_secs(60) {
+            warn!("interval ({}s) is longer than 1 minute, this may not be intentional", interval.as_secs())
+        }
+        if fps > 500 {
+            warn!("fps option may generate high CPU usage, if this becomes an issue consider lowering the value")
+        }
     }
 
     let mouse = MouseExt::new(interval)
@@ -35,6 +41,32 @@ fn main() {
         Ok(_) => (),
         Err(e) => error!("{e}"),
     }
+}
+
+fn init_logging(matches: &ArgMatches) {
+    let level = if matches.get_flag("quiet") {
+        LevelFilter::Off
+    } else if matches.get_flag("verbose") {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Info
+    };
+    let colors = ColoredLevelConfig::new()
+        .trace(Color::Black)
+        .debug(Color::Blue);
+
+    fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "{color}[{date}] {message}\x1B[0m",
+                color = format_args!("\x1B[{}m", colors.get_color(&record.level()).to_fg_str()),
+                date = chrono::Local::now().format("%H:%M:%S"),
+                message = message
+            ))
+        })
+        .level(level)
+        .chain(std::io::stdout())
+        .apply().unwrap();
 }
 
 fn run(mouse: MouseExt) -> Result<()> {
@@ -49,6 +81,7 @@ fn run(mouse: MouseExt) -> Result<()> {
             x: rng.i32((orig.x - 250)..(orig.x + 250)),
             y: rng.i32((orig.y - 250)..(orig.y + 250)),
         };
+        info!("Moving mouse to {}, {}", p.x, p.y);
 
         match mouse.move_to(p) {
             Ok(_) => (),
@@ -57,8 +90,8 @@ fn run(mouse: MouseExt) -> Result<()> {
                     info!("Mouse was in use, pausing for one interval");
                     mouse.pause();
                     // use the new position as bounds since it was moved
-                    // TODO: fix unwrapping here
-                    orig = mouse.pos().unwrap();
+                    orig = mouse.pos()
+                        .map_err(|_| anyhow!("failed to get mouse position"))?;
                 },
                 e => bail!("failed to move mouse ({e})"),
             },

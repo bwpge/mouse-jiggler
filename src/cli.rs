@@ -1,5 +1,5 @@
 use anyhow::{anyhow, ensure, Result};
-use clap::{arg, builder::ValueParser, command, ArgAction, Command, ArgGroup, Arg, value_parser};
+use clap::{arg, builder::ValueParser, command, value_parser, Arg, ArgAction, ArgGroup, Command};
 
 use std::time::Duration;
 
@@ -28,8 +28,6 @@ you can use this option to ensure the mouse will continue moving where expected.
 
 WARNING: If '-a' is NOT specified, you won't be able to move your mouse until \
 this application is closed.";
-
-// TODO: add pause interval when mouse is in use
 
 pub fn build() -> Command {
     command!()
@@ -62,6 +60,9 @@ pub fn build() -> Command {
             .value_delimiter(',')
             .value_parser(value_parser!(i32))
             .value_names(["X", "Y"]))
+        .arg(arg!(-p --"pause-interval" <DURATION> "Set the pause interval for movements when in use (default: INTERVAL)")
+            .conflicts_with("no-autopause")
+            .value_parser(ValueParser::new(parse_interval)))
         .arg(
             arg!(-f --fps <FPS> "Number of animation frames per second (default: 60)")
                 .default_value("60")
@@ -74,12 +75,12 @@ pub fn build() -> Command {
                 .long_help(NO_ANIMATE_LONG_HELP),
         )
         .arg(
-            arg!(-p --"no-autopause" "Do not pause mouse movements if the mouse is in use")
+            arg!(-P --"no-autopause" "Do not pause mouse movements if the mouse is in use")
                 .long_help(NO_AUTO_PAUSE_LONG_HELP),
         )
         .next_help_heading("Output Options")
         .arg(arg!(-q --quiet "Suppress all output"))
-        .arg(arg!(-w --"no-warn" "Do not emit any warnings"))
+        .arg(arg!(-w --"no-warn" "Do not emit warnings for configuration options"))
         .arg(arg!(-v --verbose "Use verbose log output"))
         .group(ArgGroup::new("verbosity").args(["quiet", "no-warn", "verbose"]))
         .next_help_heading("Options")

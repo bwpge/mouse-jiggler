@@ -1,6 +1,6 @@
 use crate::animation;
 
-use log::trace;
+use log::{info, trace};
 use mouse_rs::types::Point;
 use mouse_rs::Mouse;
 use thiserror::Error;
@@ -48,16 +48,18 @@ impl From<Point> for PointExt {
 pub struct MouseExt {
     inner: Mouse,
     interval: Duration,
+    pause_interval: Duration,
     fps: u32,
     animate: bool,
     auto_pause: bool,
 }
 
 impl MouseExt {
-    pub fn new(interval: &Duration) -> Self {
+    pub fn new(interval: &Duration, pause_interval: &Duration) -> Self {
         Self {
             inner: Mouse::new(),
             interval: interval.to_owned(),
+            pause_interval: pause_interval.to_owned(),
             fps: 144,
             animate: true,
             auto_pause: true,
@@ -88,6 +90,8 @@ impl MouseExt {
             return self.move_to_no_animate(p);
         }
 
+        info!("Moving mouse to {}, {}", p.x, p.y);
+
         let frame_ms = 1000. / self.fps as f64;
         let frame_time = Duration::from_millis(frame_ms.round() as u64);
 
@@ -111,7 +115,11 @@ impl MouseExt {
 
             // only update mouse if the position will change
             if new_pos != last_pos {
-                trace!("Animating movement (x={}, y={}, t={t:0.4}, frame={frame})", new_pos.x, new_pos.y);
+                trace!(
+                    "Animating movement (x={}, y={}, t={t:0.4}, frame={frame})",
+                    new_pos.x,
+                    new_pos.y
+                );
                 self.inner.move_to(new_pos.x, new_pos.y)?;
                 last_pos = self.pos()?;
             }
@@ -129,13 +137,26 @@ impl MouseExt {
     }
 
     fn move_to_no_animate(&self, p: PointExt) -> Result<(), MouseError> {
-        self.inner.move_to(p.x, p.y)?;
+        let start_pos = self.pos()?;
         spin_sleep::sleep(self.interval);
+
+        if self.auto_pause && self.pos()? != start_pos {
+            return Err(MouseError::Busy);
+        }
+
+        info!("Moving mouse to {}, {}", p.x, p.y);
+        self.inner.move_to(p.x, p.y)?;
 
         Ok(())
     }
 
     pub fn pause(&self) {
-        spin_sleep::sleep(self.interval);
+        if self.auto_pause {
+            info!(
+                "Mouse was in use, pausing movement for {}s",
+                self.pause_interval.as_secs_f32()
+            );
+            spin_sleep::sleep(self.pause_interval);
+        }
     }
 }

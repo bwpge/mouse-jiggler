@@ -59,7 +59,7 @@ impl MouseExt {
         Self {
             inner: Mouse::new(),
             interval: interval.to_owned(),
-            pause_interval: pause_interval.to_owned(),
+            pause_interval: pause_interval.clone(),
             fps: 144,
             animate: true,
             auto_pause: true,
@@ -125,12 +125,12 @@ impl MouseExt {
             }
 
             // pause for the remainder of frame time to achieve target fps
-            let dt = Instant::now() - f_start;
+            let dt = f_start.elapsed();
             if dt < frame_time {
                 spin_sleep::sleep(frame_time - dt);
             }
 
-            elapsed += Instant::now() - f_start;
+            elapsed += f_start.elapsed();
         }
 
         Ok(())

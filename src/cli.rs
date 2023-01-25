@@ -1,5 +1,6 @@
 use anyhow::{anyhow, ensure, Result};
-use clap::{arg, builder::ValueParser, command, value_parser, Arg, ArgAction, ArgGroup, Command};
+use clap::{arg, Arg, ArgAction, ArgGroup, command, Command, value_parser};
+use clap::builder::ValueParser;
 
 use std::time::Duration;
 
@@ -31,9 +32,8 @@ is not recommended.";
 
 const NO_AUTO_PAUSE_LONG_HELP: &str = "Do not pause mouse movements if the mouse is in use.
 
-This options is helpful if you want to ensure the mouse is always moved in the \
-calculated region. For example, if your physical mouse might be bumped or moved, \
-you can use this option to ensure the mouse will continue moving where expected.
+This option is helpful if you want to ensure the mouse is always moved in the \
+calculated region (for example, if your physical mouse might be bumped or moved).
 
 WARNING: If '-a' is NOT specified, you won't be able to move your mouse until \
 this application is closed.";

@@ -3,16 +3,16 @@ mod bounds;
 mod cli;
 mod mouse;
 
-use mouse::{MouseExt, PointExt};
 use bounds::Bounds;
+use mouse::{MouseExt, PointExt};
 
 use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use fern::colors::{Color, ColoredLevelConfig};
-use log::{error, warn, LevelFilter};
+use log::{error, LevelFilter, warn};
 
-use std::time::Duration;
 use std::process::ExitCode;
+use std::time::Duration;
 
 fn main() -> ExitCode {
     let matches = cli::build().get_matches();
@@ -42,7 +42,7 @@ fn main() -> ExitCode {
             warn!(
                 "interval ({}s) is longer than 1 minute, this may not be intentional",
                 interval.as_secs()
-            )
+            );
         }
     }
 
@@ -51,12 +51,12 @@ fn main() -> ExitCode {
         .with_animate(!matches.get_flag("no-animate"))
         .with_auto_pause(!matches.get_flag("no-autopause"));
 
-    match run(mouse, bounds) {
+    match run(&mouse, &bounds) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
             error!("{e}");
             ExitCode::FAILURE
-        },
+        }
     }
 }
 
@@ -79,7 +79,7 @@ fn init_logging(matches: &ArgMatches) {
                 color = format_args!("\x1B[{}m", colors.get_color(&record.level()).to_fg_str()),
                 date = chrono::Local::now().format("%H:%M:%S"),
                 message = message
-            ))
+            ));
         })
         .level(level)
         .chain(std::io::stdout())
@@ -87,7 +87,7 @@ fn init_logging(matches: &ArgMatches) {
         .unwrap();
 }
 
-fn run(mouse: MouseExt, bounds: Bounds) -> Result<()> {
+fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
     let rng = fastrand::Rng::new();
     let mut orig = mouse
         .pos()
@@ -117,7 +117,12 @@ fn run(mouse: MouseExt, bounds: Bounds) -> Result<()> {
     }
 }
 
-fn gen_new_point(rng: &fastrand::Rng, bounds: &Bounds, orig: PointExt, last_p: PointExt) -> PointExt {
+fn gen_new_point(
+    rng: &fastrand::Rng,
+    bounds: &Bounds,
+    orig: PointExt,
+    last_p: PointExt,
+) -> PointExt {
     loop {
         let result = match *bounds {
             Bounds::Rect { x1, y1, x2, y2 } => {
@@ -127,12 +132,10 @@ fn gen_new_point(rng: &fastrand::Rng, bounds: &Bounds, orig: PointExt, last_p: P
                     x: rng.i32(x_range),
                     y: rng.i32(y_range),
                 }
-            },
-            Bounds::Relative { dx: x, dy: y } => {
-                PointExt {
-                    x: rng.i32((orig.x - x)..=(orig.x + x)),
-                    y: rng.i32((orig.y - y)..=(orig.y + y)),
-                }
+            }
+            Bounds::Relative { dx: x, dy: y } => PointExt {
+                x: rng.i32((orig.x - x)..=(orig.x + x)),
+                y: rng.i32((orig.y - y)..=(orig.y + y)),
             },
         };
 

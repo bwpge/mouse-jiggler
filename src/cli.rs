@@ -13,6 +13,15 @@ A single number argument must be a positive value.
 Warnings are emitted for any duration longer than 1 minute, as this is probably \
 not intentional for most use cases.";
 
+const FPS_LONG_HELP: &str = "Number of animation frames per second. If not \
+specified, defaults to 60.
+
+Note that frames are specified per SECOND, not per INTERVAL. Thus an interval \
+of 10s at 60fps would result in 600 animation frames per interval. Similarly, \
+an interval of 0.5s at 60fps would generate 30 animation frames per interval. \
+In general, lower interval times require a higher fps value to make animations \
+appear smooth.";
+
 const NO_ANIMATE_LONG_HELP: &str = "Do not animate mouse movements. Instead, \
 'place' the mouse at each point.
 
@@ -43,28 +52,32 @@ pub fn build() -> Command {
                 .value_parser(ValueParser::new(parse_interval)),
         )
         .next_help_heading("Mouse Options")
-        .arg(Arg::new("bounds")
+        .arg(Arg::new("absolute-bounds")
             .short('b')
-            .long("bounds")
-            .help("Restrict mouse movements inside a rectangle")
+            .long("absolute-bounds")
+            .help("Restrict movements inside a rectangle with absolute coordinates")
             .num_args(4)
             .value_names(["X1", "Y1", "X2", "Y2"])
             .value_delimiter(',')
             .value_parser(value_parser!(i32))
+            .allow_negative_numbers(true)
             .conflicts_with("relative-bounds"))
         .arg(Arg::new("relative-bounds")
             .short('r')
             .long("relative-bounds")
-            .help("Generate random points relative (+/- X and Y) to the current mouse position")
+            .help("Restrict movements relative to the starting mouse position")
             .num_args(2)
             .value_delimiter(',')
             .value_parser(value_parser!(i32))
-            .value_names(["X", "Y"]))
-        .arg(arg!(-p --"pause-interval" <DURATION> "Set the pause interval for movements when in use (default: INTERVAL)")
+            .value_names(["DX", "DY"]))
+        .arg(arg!(-p --"pause-interval" <DURATION> "Set the pause interval for movements when in use")
             .conflicts_with("no-autopause")
+            .default_value("10")
+            .hide_default_value(true)
             .value_parser(ValueParser::new(parse_interval)))
         .arg(
             arg!(-f --fps <FPS> "Number of animation frames per second (default: 60)")
+                .long_help(FPS_LONG_HELP)
                 .default_value("60")
                 .hide_default_value(true)
                 .value_parser(ValueParser::new(parse_fps))

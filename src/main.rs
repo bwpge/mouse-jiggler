@@ -1,8 +1,10 @@
 mod animation;
+mod bounds;
 mod cli;
 mod mouse;
 
 use mouse::{MouseExt, PointExt};
+use bounds::Bounds;
 
 use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
@@ -10,8 +12,9 @@ use fern::colors::{Color, ColoredLevelConfig};
 use log::{error, warn, LevelFilter};
 
 use std::time::Duration;
+use std::process::ExitCode;
 
-fn main() {
+fn main() -> ExitCode {
     let matches = cli::build().get_matches();
     init_logging(&matches);
 
@@ -25,6 +28,11 @@ fn main() {
         .get_one::<u32>("fps")
         .copied()
         .expect("fps should be required by clap");
+    let bounds = Bounds::from(&matches);
+    if bounds.has_empty_range() {
+        error!("bounds '{}' does not generate any points", bounds);
+        return ExitCode::FAILURE;
+    }
 
     if !matches.get_flag("no-warn") {
         if matches.get_flag("no-autopause") && !matches.get_flag("no-animate") {
@@ -36,9 +44,6 @@ fn main() {
                 interval.as_secs()
             )
         }
-        if fps > 500 {
-            warn!("fps option may generate high CPU usage, if this becomes an issue consider lowering the value")
-        }
     }
 
     let mouse = MouseExt::new(interval, pause_interval)
@@ -46,9 +51,12 @@ fn main() {
         .with_animate(!matches.get_flag("no-animate"))
         .with_auto_pause(!matches.get_flag("no-autopause"));
 
-    match run(mouse) {
-        Ok(_) => (),
-        Err(e) => error!("{e}"),
+    match run(mouse, bounds) {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(e) => {
+            error!("{e}");
+            ExitCode::FAILURE
+        },
     }
 }
 
@@ -79,18 +87,15 @@ fn init_logging(matches: &ArgMatches) {
         .unwrap();
 }
 
-fn run(mouse: MouseExt) -> Result<()> {
+fn run(mouse: MouseExt, bounds: Bounds) -> Result<()> {
     let rng = fastrand::Rng::new();
     let mut orig = mouse
         .pos()
         .map_err(|_| anyhow!("failed to get mouse position"))?;
 
+    let mut last_p = orig;
     loop {
-        // TODO: use cli options for generating random points
-        let p = PointExt {
-            x: rng.i32((orig.x - 250)..(orig.x + 250)),
-            y: rng.i32((orig.y - 250)..(orig.y + 250)),
-        };
+        let p = gen_new_point(&rng, &bounds, orig, last_p);
 
         match mouse.move_to(p) {
             Ok(_) => (),
@@ -98,12 +103,41 @@ fn run(mouse: MouseExt) -> Result<()> {
                 mouse::MouseError::Busy => {
                     mouse.pause();
                     // use the new position as bounds since it was moved
-                    orig = mouse
-                        .pos()
-                        .map_err(|_| anyhow!("failed to get mouse position"))?;
+                    if bounds.is_relative() {
+                        orig = mouse
+                            .pos()
+                            .map_err(|_| anyhow!("failed to get mouse position"))?;
+                    }
                 }
                 e => bail!("failed to move mouse ({e})"),
             },
+        }
+
+        last_p = p;
+    }
+}
+
+fn gen_new_point(rng: &fastrand::Rng, bounds: &Bounds, orig: PointExt, last_p: PointExt) -> PointExt {
+    loop {
+        let result = match *bounds {
+            Bounds::Rect { x1, y1, x2, y2 } => {
+                let x_range = if x1 <= x2 { x1..=x2 } else { x2..=x1 };
+                let y_range = if y1 <= y2 { y1..=y2 } else { y2..=y1 };
+                PointExt {
+                    x: rng.i32(x_range),
+                    y: rng.i32(y_range),
+                }
+            },
+            Bounds::Relative { dx: x, dy: y } => {
+                PointExt {
+                    x: rng.i32((orig.x - x)..=(orig.x + x)),
+                    y: rng.i32((orig.y - y)..=(orig.y + y)),
+                }
+            },
+        };
+
+        if result != last_p {
+            return result;
         }
     }
 }

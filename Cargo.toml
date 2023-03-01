@@ -1,6 +1,6 @@
 [package]
-name = "mouse-jiggler"
-version = "0.1.0"
+name = "mouser"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
@@ -13,6 +13,7 @@ clap = { version = "4.0", features = ["cargo", "wrap_help"] }
 fastrand = "1.8"
 fern = { version = "0.6", features = ["colored"] }
 log = "0.4"
-mouse-rs = "0.4"
+# temporary fork until PR is merged
+mouse-rs = { git = "https://github.com/bwpge/mouse-rs" }
 spin_sleep = "1.1"
 thiserror = "1.0"

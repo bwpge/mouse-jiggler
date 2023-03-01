@@ -1,1 +1,1 @@
-# mouse-jiggler
+# mouser

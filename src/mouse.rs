@@ -1,6 +1,5 @@
 use crate::animation;
 
-use log::{info, trace};
 use mouse_rs::types::Point;
 use mouse_rs::Mouse;
 use thiserror::Error;
@@ -90,7 +89,7 @@ impl MouseExt {
             return self.move_to_no_animate(p);
         }
 
-        info!("Moving mouse to {}, {}", p.x, p.y);
+        println!("Moving mouse to {}, {}", p.x, p.y);
 
         let frame_ms = 1000. / self.fps as f64;
         let frame_time = Duration::from_millis(frame_ms.round() as u64);
@@ -115,10 +114,9 @@ impl MouseExt {
 
             // only update mouse if the position will change
             if new_pos != last_pos {
-                trace!(
+                println!(
                     "Animating movement (x={}, y={}, t={t:0.4}, frame={frame})",
-                    new_pos.x,
-                    new_pos.y
+                    new_pos.x, new_pos.y
                 );
                 self.inner.move_to(new_pos.x, new_pos.y)?;
                 last_pos = self.pos()?;
@@ -144,7 +142,7 @@ impl MouseExt {
             return Err(MouseError::Busy);
         }
 
-        info!("Moving mouse to {}, {}", p.x, p.y);
+        println!("Moving mouse to {}, {}", p.x, p.y);
         self.inner.move_to(p.x, p.y)?;
 
         Ok(())
@@ -152,7 +150,7 @@ impl MouseExt {
 
     pub fn pause(&self) {
         if self.auto_pause {
-            info!(
+            println!(
                 "Mouse was in use, pausing movement for {}s",
                 self.pause_interval.as_secs_f32()
             );

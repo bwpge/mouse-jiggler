@@ -11,8 +11,6 @@ anyhow = "1.0"
 chrono = "0.4"
 clap = { version = "4.0", features = ["cargo", "wrap_help"] }
 fastrand = "1.8"
-fern = { version = "0.6", features = ["colored"] }
-log = "0.4"
 # temporary fork until PR is merged
 mouse-rs = { git = "https://github.com/bwpge/mouse-rs" }
 spin_sleep = "1.1"

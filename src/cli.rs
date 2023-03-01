@@ -1,6 +1,6 @@
 use anyhow::{anyhow, ensure, Result};
-use clap::{arg, Arg, ArgAction, ArgGroup, command, Command, value_parser};
 use clap::builder::ValueParser;
+use clap::{arg, command, value_parser, Arg, ArgAction, Command};
 
 use std::time::Duration;
 
@@ -9,10 +9,7 @@ mouse movements. If not specified, defaults to 1 second.
 
 A single number is parsed as SECONDS between movements. Numbers can \
 be specified as integers (e.g., 42) or floating point numbers (e.g., 0.42). \
-A single number argument must be a positive value.
-
-Warnings are emitted for any duration longer than 1 minute, as this is probably \
-not intentional for most use cases.";
+A single number argument must be a positive value.";
 
 const FPS_LONG_HELP: &str = "Number of animation frames per second. If not \
 specified, defaults to 60.
@@ -91,11 +88,6 @@ pub fn build() -> Command {
             arg!(-P --"no-autopause" "Do not pause mouse movements if the mouse is in use")
                 .long_help(NO_AUTO_PAUSE_LONG_HELP),
         )
-        .next_help_heading("Output Options")
-        .arg(arg!(-q --quiet "Suppress all output"))
-        .arg(arg!(-w --"no-warn" "Do not emit warnings for configuration options"))
-        .arg(arg!(-v --verbose "Use verbose log output"))
-        .group(ArgGroup::new("verbosity").args(["quiet", "no-warn", "verbose"]))
         .next_help_heading("Options")
         .arg(arg!(-h --help "Print help information and quit").action(ArgAction::Help))
         .arg(arg!(-V --version "Print version information and quit").action(ArgAction::Version))

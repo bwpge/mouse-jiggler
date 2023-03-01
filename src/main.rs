@@ -7,16 +7,12 @@ use bounds::Bounds;
 use mouse::{MouseExt, PointExt};
 
 use anyhow::{anyhow, bail, Result};
-use clap::ArgMatches;
-use fern::colors::{Color, ColoredLevelConfig};
-use log::{error, LevelFilter, warn};
 
 use std::process::ExitCode;
 use std::time::Duration;
 
 fn main() -> ExitCode {
     let matches = cli::build().get_matches();
-    init_logging(&matches);
 
     let interval = matches
         .get_one::<Duration>("INTERVAL")
@@ -30,20 +26,12 @@ fn main() -> ExitCode {
         .expect("fps should be required by clap");
     let bounds = Bounds::from(&matches);
     if bounds.has_empty_range() {
-        error!("bounds '{}' does not generate any points", bounds);
+        eprintln!("error: bounds {bounds} will result in no mouse movement");
         return ExitCode::FAILURE;
     }
 
-    if !matches.get_flag("no-warn") {
-        if matches.get_flag("no-autopause") && !matches.get_flag("no-animate") {
-            warn!("auto-pause disabled with animations enabled, mouse is locked until the application exits");
-        }
-        if *interval > Duration::from_secs(60) {
-            warn!(
-                "interval ({}s) is longer than 1 minute, this may not be intentional",
-                interval.as_secs()
-            );
-        }
+    if matches.get_flag("no-autopause") && !matches.get_flag("no-animate") {
+        eprintln!("warning: auto-pause disabled with animations enabled, mouse is locked until the application exits");
     }
 
     let mouse = MouseExt::new(interval, pause_interval)
@@ -54,37 +42,10 @@ fn main() -> ExitCode {
     match run(&mouse, &bounds) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
-            error!("{e}");
+            eprintln!("error: {e}");
             ExitCode::FAILURE
         }
     }
-}
-
-fn init_logging(matches: &ArgMatches) {
-    let level = if matches.get_flag("quiet") {
-        LevelFilter::Off
-    } else if matches.get_flag("verbose") {
-        LevelFilter::Trace
-    } else {
-        LevelFilter::Info
-    };
-    let colors = ColoredLevelConfig::new()
-        .trace(Color::Black)
-        .debug(Color::Blue);
-
-    fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "{color}[{date}] {message}\x1B[0m",
-                color = format_args!("\x1B[{}m", colors.get_color(&record.level()).to_fg_str()),
-                date = chrono::Local::now().format("%H:%M:%S"),
-                message = message
-            ));
-        })
-        .level(level)
-        .chain(std::io::stdout())
-        .apply()
-        .unwrap();
 }
 
 fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {

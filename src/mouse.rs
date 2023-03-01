@@ -26,10 +26,10 @@ impl PointExt {
         Self { x, y }
     }
 
-    pub fn lerp(p1: PointExt, p2: PointExt, t: f64) -> PointExt {
+    pub fn lerp(p1: Self, p2: Self, t: f64) -> Self {
         let t_clamp = t.clamp(0., 1.);
 
-        PointExt::new(
+        Self::new(
             (p1.x as f64 + (p2.x - p1.x) as f64 * t_clamp).round() as i32,
             (p1.y as f64 + (p2.y - p1.y) as f64 * t_clamp).round() as i32,
         )

@@ -1,4 +1,4 @@
-use crate::animation;
+use crate::{animation, config::Config, input};
 
 use mouse_rs::types::Point;
 use mouse_rs::Mouse;
@@ -8,6 +8,8 @@ use std::{
     fmt,
     time::{Duration, Instant},
 };
+
+const AUTO_PAUSE_TOLERANCE: f64 = 50.0;
 
 #[derive(Debug, Error)]
 pub enum MouseError {
@@ -68,45 +70,15 @@ pub struct MouseExt {
 }
 
 impl MouseExt {
-    pub fn new(interval: &Duration, pause_interval: &Duration) -> Self {
+    pub fn with_config(config: &Config) -> Self {
         Self {
             inner: Mouse::new(),
-            interval: interval.to_owned(),
-            pause_interval: *pause_interval,
-            fps: 144,
-            animate: true,
-            auto_pause: true,
+            interval: config.interval,
+            pause_interval: config.pause_interval,
+            fps: config.fps,
+            animate: config.animate,
+            auto_pause: config.auto_pause,
         }
-    }
-
-    pub fn with_fps(mut self, fps: u32) -> Self {
-        self.fps = fps;
-        self
-    }
-
-    pub fn with_animate(mut self, animate: bool) -> Self {
-        self.animate = animate;
-        self
-    }
-
-    pub fn with_auto_pause(mut self, auto_pause: bool) -> Self {
-        self.auto_pause = auto_pause;
-        self
-    }
-
-    #[inline]
-    pub fn animated(&self) -> bool {
-        self.animate
-    }
-
-    #[inline]
-    pub fn interval(&self) -> &Duration {
-        &self.interval
-    }
-
-    #[inline]
-    pub fn pause_interval(&self) -> &Duration {
-        &self.pause_interval
     }
 
     #[inline]
@@ -134,7 +106,7 @@ impl MouseExt {
             // level of tolerance for the animation to continue, but will still
             // correctly stop if the user moves the mouse around to unlock it
             let curr_pos = self.pos()?;
-            if self.auto_pause && !last_pos.is_near(curr_pos, 50.0) {
+            if self.auto_pause && !last_pos.is_near(curr_pos, AUTO_PAUSE_TOLERANCE) {
                 return Err(MouseError::Busy);
             }
 
@@ -153,7 +125,7 @@ impl MouseExt {
             if dt < frame_time {
                 spin_sleep::sleep(frame_time - dt);
                 // make sure stdin isn't waiting while animating
-                if is_stdin_waiting(Duration::from_secs(0)) {
+                if input::is_stdin_waiting(Duration::from_secs(0)) {
                     return Ok(());
                 }
             }
@@ -165,28 +137,23 @@ impl MouseExt {
     }
 
     fn move_to_no_animate(&self, p: PointExt) -> Result<(), MouseError> {
-        let start_pos = self.pos()?;
+        self.inner.move_to(p.x, p.y)?;
 
-        if is_stdin_waiting(self.interval) {
+        // make sure stdin isn't waiting while pausing
+        if input::is_stdin_waiting(self.interval) {
             return Ok(());
         }
 
-        if self.auto_pause && self.pos()? != start_pos {
+        if self.auto_pause && !self.pos()?.is_near(p, AUTO_PAUSE_TOLERANCE) {
             return Err(MouseError::Busy);
         }
-
-        self.inner.move_to(p.x, p.y)?;
 
         Ok(())
     }
 
     pub fn auto_pause(&self) {
-        if self.auto_pause && is_stdin_waiting(self.pause_interval) {
+        if self.auto_pause && input::is_stdin_waiting(self.pause_interval) {
             // block intentionally empty
         }
     }
-}
-
-fn is_stdin_waiting(timeout: Duration) -> bool {
-    crossterm::event::poll(timeout).expect("should be able to poll stdin")
 }

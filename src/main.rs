@@ -1,14 +1,17 @@
 mod animation;
 mod bounds;
 mod cli;
+mod config;
+mod input;
 mod mouse;
 
 use bounds::Bounds;
+use config::Config;
+use input::KeyCommand;
 use mouse::{MouseExt, PointExt};
 
 use anyhow::{anyhow, bail, Result};
-use crossterm::cursor::MoveToColumn;
-use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::cursor::{MoveTo, MoveToColumn, MoveToNextLine};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
@@ -22,12 +25,12 @@ use std::time::Duration;
 fn main() -> ExitCode {
     let matches = cli::build().get_matches();
 
-    let interval = matches
+    let interval = *matches
         .get_one::<Duration>("INTERVAL")
         .expect("interval should be required by clap");
-    let pause_interval = matches
+    let pause_interval = *matches
         .get_one::<Duration>("pause-interval")
-        .unwrap_or(interval);
+        .unwrap_or(&interval);
     let fps = matches
         .get_one::<u32>("fps")
         .copied()
@@ -37,11 +40,19 @@ fn main() -> ExitCode {
         eprintln!("error: bounds {bounds} will result in no mouse movement");
         return ExitCode::FAILURE;
     }
+    let animate = !matches.get_flag("no-animate");
+    let auto_pause = !matches.get_flag("no-autopause");
 
-    let mouse = MouseExt::new(interval, pause_interval)
-        .with_fps(fps)
-        .with_animate(!matches.get_flag("no-animate"))
-        .with_auto_pause(!matches.get_flag("no-autopause"));
+    let config = Config {
+        interval,
+        pause_interval,
+        fps,
+        bounds,
+        animate,
+        auto_pause,
+    };
+
+    let mouse = MouseExt::with_config(&config);
 
     let mut stdout = stdout();
     execute!(
@@ -53,7 +64,7 @@ fn main() -> ExitCode {
     .expect("should be able to execute crossterm commands");
     enable_raw_mode().expect("should be able to start raw mode");
 
-    let code = match run(&mouse, &bounds) {
+    let code = match run(&mouse, &config) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -68,55 +79,70 @@ fn main() -> ExitCode {
     code
 }
 
-fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
+fn run(mouse: &MouseExt, config: &Config) -> Result<()> {
     let mut stdout = stdout();
-    execute!(
-        stdout,
-        cursor::MoveTo(0, 0),
-        Print("Application started.\n".dim()),
-        cursor::MoveToColumn(0),
-        Print("Press ".dim()),
-        Print("q".bold()),
-        Print(" to quit\n\n".dim()),
-        cursor::MoveToColumn(0),
-    )?;
+
+    print_header(&mut stdout);
 
     let rng = fastrand::Rng::new();
     let mut orig = mouse
         .pos()
         .map_err(|_| anyhow!("failed to get mouse position"))?;
 
-    let poll_time = if mouse.animated() {
-        Duration::from_millis(25)
+    let poll_time = Duration::from_millis(25);
+
+    let action_text = if config.animate {
+        " animating to "
     } else {
-        mouse.interval().to_owned()
+        " placed cursor at "
     };
+
+    execute!(
+        stdout,
+        Clear(ClearType::CurrentLine),
+        Print("Status:".bold().dim()),
+        MoveToColumn(0),
+    )?;
 
     let mut last_p = orig;
     loop {
-        if poll(poll_time)? {
-            match read()? {
-                Event::Key(KeyEvent {
-                    code: KeyCode::Char('q'),
-                    modifiers: KeyModifiers::NONE,
-                    ..
-                }) => return Ok(()),
-                Event::Key(KeyEvent {
-                    code: KeyCode::Char('c'),
-                    modifiers: KeyModifiers::CONTROL,
-                    ..
-                }) => return Ok(()),
-                _ => (),
-            };
-        }
+        match KeyCommand::read(&poll_time)? {
+            KeyCommand::Quit => return Ok(()),
+            KeyCommand::TogglePause => {
+                execute!(
+                    stdout,
+                    Clear(ClearType::CurrentLine),
+                    Print("Status:".bold().dim()),
+                    SetForegroundColor(Color::Yellow),
+                    Print(" paused"),
+                    ResetColor,
+                    Print(" (press ".dim()),
+                    Print("p".bold()),
+                    Print(" to unpause)".dim()),
+                    MoveToColumn(0),
+                )?;
+                input::debounce()?;
+                'pause: loop {
+                    match KeyCommand::read(&Duration::from_secs(60))? {
+                        KeyCommand::Quit => return Ok(()),
+                        KeyCommand::TogglePause => {
+                            input::debounce()?;
+                            break 'pause;
+                        }
+                        _ => (),
+                    }
+                }
+            }
+            _ => (),
+        };
 
-        let p = sample_point(&rng, bounds, orig, last_p);
+        let p = sample_point(&rng, &config.bounds, orig, last_p);
         execute!(
             stdout,
             Clear(ClearType::CurrentLine),
-            Print("Status:".bold()),
+            Print("Status:".bold().dim()),
+            Print(action_text.dim()),
             SetForegroundColor(Color::Cyan),
-            Print(" moving cursor to "),
             Print(p),
             ResetColor,
             MoveToColumn(0),
@@ -126,20 +152,20 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
             Ok(_) => (),
             Err(err) => match err {
                 mouse::MouseError::Busy => {
-                    let pause_str = format!("{:.1}s", mouse.pause_interval().as_secs_f32());
+                    let pause_str = format!("{:.1}s", config.pause_interval.as_secs_f32());
                     execute!(
                         stdout,
                         Clear(ClearType::CurrentLine),
-                        Print("Status:".bold()),
+                        Print("Status:".bold().dim()),
+                        Print(" auto-pausing for ".dim()),
                         SetForegroundColor(Color::Yellow),
-                        Print(" mouse busy, pausing for "),
                         Print(pause_str),
                         ResetColor,
                         MoveToColumn(0),
                     )?;
                     mouse.auto_pause();
-                    // use the new position as bounds since it was moved
-                    if bounds.is_relative() {
+                    if config.bounds.is_relative() {
+                        // use the new position as origin since it was moved
                         orig = mouse
                             .pos()
                             .map_err(|_| anyhow!("failed to get mouse position"))?;
@@ -179,4 +205,26 @@ fn sample_point(
             return result;
         }
     }
+}
+
+fn print_header(stdout: &mut std::io::Stdout) {
+    execute!(
+        stdout,
+        MoveTo(0, 0),
+        Print("Application started.".dim()),
+        MoveToNextLine(2),
+        Print("Commands:".bold().dim()),
+        MoveToNextLine(1),
+        Print("    Press ".dim()),
+        Print("q".bold()),
+        Print(" to quit".dim()),
+        MoveToNextLine(1),
+        Print("    Press ".dim()),
+        Print("p".bold()),
+        Print(" to toggle pause".dim()),
+        MoveToNextLine(1),
+        Print("    Press any other key to skip an iteration".dim()),
+        MoveToNextLine(2),
+    )
+    .expect("should be able to write to stdout");
 }

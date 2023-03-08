@@ -67,7 +67,7 @@ impl MouseExt {
         Self {
             inner: Mouse::new(),
             interval: interval.to_owned(),
-            pause_interval: pause_interval.clone(),
+            pause_interval: *pause_interval,
             fps: 144,
             animate: true,
             auto_pause: true,
@@ -99,6 +99,7 @@ impl MouseExt {
         &self.interval
     }
 
+    #[inline]
     pub fn pause_interval(&self) -> &Duration {
         &self.pause_interval
     }
@@ -122,6 +123,7 @@ impl MouseExt {
         while elapsed < self.interval {
             let f_start = Instant::now();
 
+            // TODO: fix busy detection logic on macOS
             let curr_pos = self.pos()?;
             if self.auto_pause && last_pos != curr_pos {
                 return Err(MouseError::Busy);
@@ -141,6 +143,10 @@ impl MouseExt {
             let dt = f_start.elapsed();
             if dt < frame_time {
                 spin_sleep::sleep(frame_time - dt);
+                // make sure stdin isn't waiting while animating
+                if is_stdin_waiting(Duration::from_secs(0)) {
+                    return Ok(());
+                }
             }
 
             elapsed += f_start.elapsed();
@@ -151,7 +157,10 @@ impl MouseExt {
 
     fn move_to_no_animate(&self, p: PointExt) -> Result<(), MouseError> {
         let start_pos = self.pos()?;
-        spin_sleep::sleep(self.interval);
+
+        if is_stdin_waiting(self.interval) {
+            return Ok(());
+        }
 
         if self.auto_pause && self.pos()? != start_pos {
             return Err(MouseError::Busy);
@@ -162,9 +171,13 @@ impl MouseExt {
         Ok(())
     }
 
-    pub fn pause(&self) {
-        if self.auto_pause {
-            spin_sleep::sleep(self.pause_interval);
+    pub fn auto_pause(&self) {
+        if self.auto_pause && is_stdin_waiting(self.pause_interval) {
+            // block intentionally empty
         }
     }
+}
+
+fn is_stdin_waiting(timeout: Duration) -> bool {
+    crossterm::event::poll(timeout).expect("should be able to poll stdin")
 }

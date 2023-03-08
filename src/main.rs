@@ -73,7 +73,7 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
     execute!(
         stdout,
         cursor::MoveTo(0, 0),
-        Print("Application started.\n"),
+        Print("Application started.\n".dim()),
         cursor::MoveToColumn(0),
         Print("Press ".dim()),
         Print("q".bold()),
@@ -94,7 +94,6 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
 
     let mut last_p = orig;
     loop {
-        // TODO: this needs to be part of a thread so it can listen while animating
         if poll(poll_time)? {
             match read()? {
                 Event::Key(KeyEvent {
@@ -102,11 +101,16 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
                     modifiers: KeyModifiers::NONE,
                     ..
                 }) => return Ok(()),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('c'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                }) => return Ok(()),
                 _ => (),
             };
         }
 
-        let p = sample_point(&rng, &bounds, orig, last_p);
+        let p = sample_point(&rng, bounds, orig, last_p);
         execute!(
             stdout,
             Clear(ClearType::CurrentLine),
@@ -133,7 +137,7 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
                         ResetColor,
                         MoveToColumn(0),
                     )?;
-                    mouse.pause();
+                    mouse.auto_pause();
                     // use the new position as bounds since it was moved
                     if bounds.is_relative() {
                         orig = mouse

@@ -7,6 +7,14 @@ use bounds::Bounds;
 use mouse::{MouseExt, PointExt};
 
 use anyhow::{anyhow, bail, Result};
+use crossterm::cursor::MoveToColumn;
+use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use crossterm::{cursor, execute};
+use std::io::stdout;
 
 use std::process::ExitCode;
 use std::time::Duration;
@@ -39,29 +47,94 @@ fn main() -> ExitCode {
         .with_animate(!matches.get_flag("no-animate"))
         .with_auto_pause(!matches.get_flag("no-autopause"));
 
-    match run(&mouse, &bounds) {
+    let mut stdout = stdout();
+    execute!(
+        stdout,
+        cursor::Hide,
+        EnterAlternateScreen,
+        Clear(ClearType::All),
+    )
+    .expect("should be able to execute crossterm commands");
+    enable_raw_mode().expect("should be able to start raw mode");
+
+    let code = match run(&mouse, &bounds) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
             ExitCode::FAILURE
         }
-    }
+    };
+
+    disable_raw_mode().expect("should be able to disable raw mode");
+    execute!(stdout, cursor::Show, LeaveAlternateScreen)
+        .expect("should be able to leave alternate screen");
+
+    code
 }
 
 fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
+    let mut stdout = stdout();
+    execute!(
+        stdout,
+        cursor::MoveTo(0, 0),
+        Print("Application started.\n"),
+        Print("  Press "),
+        Print("q".bold()),
+        Print(" to quit\n\n"),
+    )?;
+
     let rng = fastrand::Rng::new();
     let mut orig = mouse
         .pos()
         .map_err(|_| anyhow!("failed to get mouse position"))?;
 
+    let poll_time = if mouse.animated() {
+        Duration::from_millis(25)
+    } else {
+        mouse.interval().to_owned()
+    };
+
     let mut last_p = orig;
     loop {
-        let p = gen_new_point(&rng, &bounds, orig, last_p);
+        // TODO: this needs to be part of a thread so it can listen while animating
+        if poll(poll_time)? {
+            match read()? {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('q'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => return Ok(()),
+                _ => (),
+            };
+        }
+
+        let p = sample_point(&rng, &bounds, orig, last_p);
+        execute!(
+            stdout,
+            Clear(ClearType::CurrentLine),
+            Print("Status:".bold()),
+            SetForegroundColor(Color::Cyan),
+            Print(" moving cursor to "),
+            Print(p),
+            ResetColor,
+            MoveToColumn(0),
+        )?;
 
         match mouse.move_to(p) {
             Ok(_) => (),
             Err(err) => match err {
                 mouse::MouseError::Busy => {
+                    let pause_str = format!("{:.1}s", mouse.pause_interval().as_secs_f32());
+                    execute!(
+                        stdout,
+                        Clear(ClearType::CurrentLine),
+                        Print("Status:".bold()),
+                        SetForegroundColor(Color::Yellow),
+                        Print(" mouse busy, pausing for "),
+                        Print(pause_str),
+                        ResetColor,
+                        MoveToColumn(0),
+                    )?;
                     mouse.pause();
                     // use the new position as bounds since it was moved
                     if bounds.is_relative() {
@@ -78,7 +151,7 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
     }
 }
 
-fn gen_new_point(
+fn sample_point(
     rng: &fastrand::Rng,
     bounds: &Bounds,
     orig: PointExt,

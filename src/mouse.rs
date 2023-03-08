@@ -4,7 +4,10 @@ use mouse_rs::types::Point;
 use mouse_rs::Mouse;
 use thiserror::Error;
 
-use std::time::{Duration, Instant};
+use std::{
+    fmt,
+    time::{Duration, Instant},
+};
 
 #[derive(Debug, Error)]
 pub enum MouseError {
@@ -18,6 +21,12 @@ pub enum MouseError {
 pub struct PointExt {
     pub x: i32,
     pub y: i32,
+}
+
+impl fmt::Display for PointExt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}, {}", self.x, self.y)
+    }
 }
 
 impl PointExt {
@@ -80,6 +89,20 @@ impl MouseExt {
         self
     }
 
+    #[inline]
+    pub fn animated(&self) -> bool {
+        self.animate
+    }
+
+    #[inline]
+    pub fn interval(&self) -> &Duration {
+        &self.interval
+    }
+
+    pub fn pause_interval(&self) -> &Duration {
+        &self.pause_interval
+    }
+
     pub fn pos(&self) -> Result<PointExt, MouseError> {
         Ok(self.inner.get_position()?.into())
     }
@@ -89,18 +112,14 @@ impl MouseExt {
             return self.move_to_no_animate(p);
         }
 
-        println!("Moving mouse to {}, {}", p.x, p.y);
-
         let frame_ms = 1000. / self.fps as f64;
         let frame_time = Duration::from_millis(frame_ms.round() as u64);
 
         let start_pos = self.pos()?;
         let mut last_pos = start_pos;
         let mut elapsed = Duration::from_secs(0);
-        let mut frame = 0;
 
         while elapsed < self.interval {
-            frame += 1;
             let f_start = Instant::now();
 
             let curr_pos = self.pos()?;
@@ -114,10 +133,6 @@ impl MouseExt {
 
             // only update mouse if the position will change
             if new_pos != last_pos {
-                println!(
-                    "Animating movement (x={}, y={}, t={t:0.4}, frame={frame})",
-                    new_pos.x, new_pos.y
-                );
                 self.inner.move_to(new_pos.x, new_pos.y)?;
                 last_pos = self.pos()?;
             }
@@ -142,7 +157,6 @@ impl MouseExt {
             return Err(MouseError::Busy);
         }
 
-        println!("Moving mouse to {}, {}", p.x, p.y);
         self.inner.move_to(p.x, p.y)?;
 
         Ok(())
@@ -150,10 +164,6 @@ impl MouseExt {
 
     pub fn pause(&self) {
         if self.auto_pause {
-            println!(
-                "Mouse was in use, pausing movement for {}s",
-                self.pause_interval.as_secs_f32()
-            );
             spin_sleep::sleep(self.pause_interval);
         }
     }

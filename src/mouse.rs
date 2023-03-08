@@ -34,6 +34,11 @@ impl PointExt {
         Self { x, y }
     }
 
+    pub fn is_near(&self, p: Self, tolerance: f64) -> bool {
+        f64::sqrt(f64::powi((self.x - p.x) as f64, 2) + f64::powi((self.y - p.y) as f64, 2))
+            < tolerance
+    }
+
     pub fn lerp(p1: Self, p2: Self, t: f64) -> Self {
         let t_clamp = t.clamp(0., 1.);
 
@@ -104,6 +109,7 @@ impl MouseExt {
         &self.pause_interval
     }
 
+    #[inline]
     pub fn pos(&self) -> Result<PointExt, MouseError> {
         Ok(self.inner.get_position()?.into())
     }
@@ -123,9 +129,12 @@ impl MouseExt {
         while elapsed < self.interval {
             let f_start = Instant::now();
 
-            // TODO: fix busy detection logic on macOS
+            // note: macOS `get_position` implementation seems to not update
+            // fast enough for animating. using the `is_near` method allows some
+            // level of tolerance for the animation to continue, but will still
+            // correctly stop if the user moves the mouse around to unlock it
             let curr_pos = self.pos()?;
-            if self.auto_pause && last_pos != curr_pos {
+            if self.auto_pause && !last_pos.is_near(curr_pos, 50.0) {
                 return Err(MouseError::Busy);
             }
 

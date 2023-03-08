@@ -33,7 +33,7 @@ This option is helpful if you want to ensure the mouse is always moved in the \
 calculated region (for example, if your physical mouse might be bumped or moved).
 
 WARNING: If '-a' is NOT specified, you won't be able to move your mouse until \
-this application is closed.";
+this application quits.";
 
 pub fn build() -> Command {
     command!()

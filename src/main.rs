@@ -38,10 +38,6 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    if matches.get_flag("no-autopause") && !matches.get_flag("no-animate") {
-        eprintln!("warning: auto-pause disabled with animations enabled, mouse is locked until the application exits");
-    }
-
     let mouse = MouseExt::new(interval, pause_interval)
         .with_fps(fps)
         .with_animate(!matches.get_flag("no-animate"))
@@ -78,9 +74,11 @@ fn run(mouse: &MouseExt, bounds: &Bounds) -> Result<()> {
         stdout,
         cursor::MoveTo(0, 0),
         Print("Application started.\n"),
-        Print("  Press "),
+        cursor::MoveToColumn(0),
+        Print("Press ".dim()),
         Print("q".bold()),
-        Print(" to quit\n\n"),
+        Print(" to quit\n\n".dim()),
+        cursor::MoveToColumn(0),
     )?;
 
     let rng = fastrand::Rng::new();

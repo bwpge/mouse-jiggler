@@ -86,6 +86,10 @@ impl MouseExt {
         Ok(self.inner.get_position()?.into())
     }
 
+    pub fn toggle_animate(&mut self) {
+        self.animate = !self.animate;
+    }
+
     pub fn move_to(&self, p: PointExt) -> Result<(), MouseError> {
         if !self.animate {
             return self.move_to_no_animate(p);

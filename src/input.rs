@@ -5,6 +5,7 @@ use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 
 pub enum KeyCommand {
     Quit,
+    ToggleAnimate,
     TogglePause,
     None,
     Unknown,
@@ -27,15 +28,12 @@ impl From<Event> for KeyCommand {
                 code: KeyCode::Char(c),
                 modifiers: KeyModifiers::NONE,
                 ..
-            }) => {
-                if c == 'q' {
-                    Self::Quit
-                } else if c == 'p' {
-                    Self::TogglePause
-                } else {
-                    Self::Unknown
-                }
-            }
+            }) => match c {
+                'q' => Self::Quit,
+                'p' => Self::TogglePause,
+                'a' => Self::ToggleAnimate,
+                _ => Self::Unknown,
+            },
             Event::Key(KeyEvent {
                 code: KeyCode::Char('c'),
                 modifiers: KeyModifiers::CONTROL,

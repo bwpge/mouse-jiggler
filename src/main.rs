@@ -43,7 +43,7 @@ fn main() -> ExitCode {
     let animate = !matches.get_flag("no-animate");
     let auto_pause = !matches.get_flag("no-autopause");
 
-    let config = Config {
+    let mut config = Config {
         interval,
         pause_interval,
         fps,
@@ -52,7 +52,7 @@ fn main() -> ExitCode {
         auto_pause,
     };
 
-    let mouse = MouseExt::with_config(&config);
+    let mut mouse = MouseExt::with_config(&config);
 
     let mut stdout = stdout();
     execute!(
@@ -64,7 +64,7 @@ fn main() -> ExitCode {
     .expect("should be able to execute crossterm commands");
     enable_raw_mode().expect("should be able to start raw mode");
 
-    let code = match run(&mouse, &config) {
+    let code = match run(&mut mouse, &mut config) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -79,7 +79,7 @@ fn main() -> ExitCode {
     code
 }
 
-fn run(mouse: &MouseExt, config: &Config) -> Result<()> {
+fn run(mouse: &mut MouseExt, config: &mut Config) -> Result<()> {
     let mut stdout = stdout();
 
     print_header(&mut stdout);
@@ -108,6 +108,11 @@ fn run(mouse: &MouseExt, config: &Config) -> Result<()> {
     loop {
         match KeyCommand::read(&poll_time)? {
             KeyCommand::Quit => return Ok(()),
+            KeyCommand::ToggleAnimate => {
+                input::debounce()?;
+                config.animate = !config.animate;
+                mouse.toggle_animate();
+            }
             KeyCommand::TogglePause => {
                 execute!(
                     stdout,
@@ -222,6 +227,10 @@ fn print_header(stdout: &mut std::io::Stdout) {
         Print("    Press ".dim()),
         Print("p".bold()),
         Print(" to toggle pause".dim()),
+        MoveToNextLine(1),
+        Print("    Press ".dim()),
+        Print("a".bold()),
+        Print(" to toggle animations".dim()),
         MoveToNextLine(1),
         Print("    Press any other key to skip an iteration".dim()),
         MoveToNextLine(2),

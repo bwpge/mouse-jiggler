@@ -156,6 +156,8 @@ impl MouseExt {
     }
 
     pub fn auto_pause(&self) {
+        // TODO: this should poll the mouse location on a short interval to reset the
+        //   timer if the mouse is in use while auto-pausing
         if self.auto_pause && input::is_stdin_waiting(self.pause_interval) {
             // block intentionally empty
         }

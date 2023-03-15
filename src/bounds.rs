@@ -62,6 +62,6 @@ impl From<&ArgMatches> for Bounds {
             };
         }
 
-        Bounds::Relative { dx: 500, dy: 500 }
+        Bounds::Relative { dx: 250, dy: 250 }
     }
 }

@@ -69,7 +69,7 @@ pub fn build() -> Command {
             .value_names(["DX", "DY"]))
         .arg(arg!(-p --"pause-interval" <DURATION> "Set the pause interval for movements when in use")
             .conflicts_with("no-autopause")
-            .default_value("10")
+            .default_value("60")
             .hide_default_value(true)
             .value_parser(ValueParser::new(parse_interval)))
         .arg(

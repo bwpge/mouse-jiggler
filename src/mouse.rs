@@ -63,7 +63,6 @@ impl From<Point> for PointExt {
 pub struct MouseExt {
     inner: Mouse,
     interval: Duration,
-    pause_interval: Duration,
     fps: u32,
     animate: bool,
     auto_pause: bool,
@@ -74,7 +73,6 @@ impl MouseExt {
         Self {
             inner: Mouse::new(),
             interval: config.interval,
-            pause_interval: config.pause_interval,
             fps: config.fps,
             animate: config.animate,
             auto_pause: config.auto_pause,
@@ -153,13 +151,5 @@ impl MouseExt {
         }
 
         Ok(())
-    }
-
-    pub fn auto_pause(&self) {
-        // TODO: this should poll the mouse location on a short interval to reset the
-        //   timer if the mouse is in use while auto-pausing
-        if self.auto_pause && input::is_stdin_waiting(self.pause_interval) {
-            // block intentionally empty
-        }
     }
 }

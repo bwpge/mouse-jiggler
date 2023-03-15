@@ -157,18 +157,7 @@ fn run(mouse: &mut MouseExt, config: &mut Config) -> Result<()> {
             Ok(_) => (),
             Err(err) => match err {
                 mouse::MouseError::Busy => {
-                    let pause_str = humantime::format_duration(config.pause_interval);
-                    execute!(
-                        stdout,
-                        Clear(ClearType::CurrentLine),
-                        Print("Status:".bold().dim()),
-                        Print(" auto-pausing for ".dim()),
-                        SetForegroundColor(Color::Yellow),
-                        Print(pause_str),
-                        ResetColor,
-                        MoveToColumn(0),
-                    )?;
-                    mouse.auto_pause();
+                    auto_pause(config, mouse);
                     if config.bounds.is_relative() {
                         // use the new position as origin since it was moved
                         orig = mouse
@@ -209,6 +198,44 @@ fn sample_point(
         if result != last_p {
             return result;
         }
+    }
+}
+
+fn auto_pause(config: &Config, mouse: &MouseExt) {
+    if !config.auto_pause {
+        return;
+    }
+
+    let mut stdout = stdout();
+    let mut start = std::time::Instant::now();
+    let mut elapsed = Duration::from_secs(0);
+    let mut p = mouse.pos().expect("should be able to get mouse position");
+
+    while elapsed <= config.pause_interval {
+        let remaining = config.pause_interval - elapsed;
+        let pause_str = format!("{:.2}s", remaining.as_secs_f32());
+        execute!(
+            stdout,
+            Clear(ClearType::CurrentLine),
+            Print("Status:".bold().dim()),
+            Print(" auto-pausing for ".dim()),
+            SetForegroundColor(Color::Yellow),
+            Print(pause_str),
+            ResetColor,
+            MoveToColumn(0),
+        )
+        .expect("should be able to write to stdout");
+
+        if input::is_stdin_waiting(Duration::from_millis(80)) {
+            break;
+        }
+
+        let curr_pos = mouse.pos().expect("should be able to get mouse position");
+        if !p.is_near(curr_pos, 100.0) {
+            start = std::time::Instant::now();
+            p = curr_pos;
+        }
+        elapsed = std::time::Instant::now() - start;
     }
 }
 

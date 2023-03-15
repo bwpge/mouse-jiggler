@@ -12,6 +12,7 @@ chrono = "0.4"
 clap = { version = "4.0", features = ["cargo", "wrap_help"] }
 crossterm = "0.26.1"
 fastrand = "1.8"
+humantime = "2.1"
 # temporary git repo until crate is updated
 mouse-rs = { git = "https://github.com/AltF02/mouse-rs.git" }
 spin_sleep = "1.1"

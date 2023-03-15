@@ -157,7 +157,7 @@ fn run(mouse: &mut MouseExt, config: &mut Config) -> Result<()> {
             Ok(_) => (),
             Err(err) => match err {
                 mouse::MouseError::Busy => {
-                    let pause_str = format!("{:.1}s", config.pause_interval.as_secs_f32());
+                    let pause_str = humantime::format_duration(config.pause_interval);
                     execute!(
                         stdout,
                         Clear(ClearType::CurrentLine),
@@ -218,21 +218,21 @@ fn print_header(stdout: &mut std::io::Stdout) {
         MoveTo(0, 0),
         Print("Application started.".dim()),
         MoveToNextLine(2),
-        Print("Commands:".bold().dim()),
+        Print("Commands".bold()),
         MoveToNextLine(1),
-        Print("    Press ".dim()),
+        Print("press ".dim()),
         Print("q".bold()),
         Print(" to quit".dim()),
         MoveToNextLine(1),
-        Print("    Press ".dim()),
+        Print("press ".dim()),
         Print("p".bold()),
         Print(" to toggle pause".dim()),
         MoveToNextLine(1),
-        Print("    Press ".dim()),
+        Print("press ".dim()),
         Print("a".bold()),
         Print(" to toggle animations".dim()),
         MoveToNextLine(1),
-        Print("    Press any other key to skip an iteration".dim()),
+        Print("press any other key to skip an iteration".dim()),
         MoveToNextLine(2),
     )
     .expect("should be able to write to stdout");

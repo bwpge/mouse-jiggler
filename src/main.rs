@@ -157,9 +157,8 @@ fn run(mouse: &mut MouseExt, config: &mut Config) -> Result<()> {
             Ok(_) => (),
             Err(err) => match err {
                 mouse::MouseError::Busy => {
-                    auto_pause(config, mouse);
+                    auto_pause(config, mouse)?;
                     if config.bounds.is_relative() {
-                        // use the new position as origin since it was moved
                         orig = mouse
                             .pos()
                             .map_err(|_| anyhow!("failed to get mouse position"))?;
@@ -201,42 +200,60 @@ fn sample_point(
     }
 }
 
-fn auto_pause(config: &Config, mouse: &MouseExt) {
+fn auto_pause(config: &Config, mouse: &MouseExt) -> Result<()> {
     if !config.auto_pause {
-        return;
+        return Ok(());
     }
 
     let mut stdout = stdout();
     let mut start = std::time::Instant::now();
     let mut elapsed = Duration::from_secs(0);
-    let mut p = mouse.pos().expect("should be able to get mouse position");
+    let mut p = mouse
+        .pos()
+        .map_err(|_| anyhow!("failed to get mouse position"))?;
 
-    while elapsed <= config.pause_interval {
+    'countdown: while elapsed <= config.pause_interval {
         let remaining = config.pause_interval - elapsed;
-        let pause_str = format!("{:.2}s", remaining.as_secs_f32());
-        execute!(
-            stdout,
-            Clear(ClearType::CurrentLine),
-            Print("Status:".bold().dim()),
-            Print(" auto-pausing for ".dim()),
-            SetForegroundColor(Color::Yellow),
-            Print(pause_str),
-            ResetColor,
-            MoveToColumn(0),
-        )
-        .expect("should be able to write to stdout");
-
+        print_auto_pause(&mut stdout, remaining);
         if input::is_stdin_waiting(Duration::from_millis(80)) {
             break;
         }
 
-        let curr_pos = mouse.pos().expect("should be able to get mouse position");
-        if !p.is_near(curr_pos, 100.0) {
-            start = std::time::Instant::now();
+        'reset: loop {
+            let curr_pos = mouse
+                .pos()
+                .map_err(|_| anyhow!("failed to get mouse position"))?;
+            if p.is_near(curr_pos, 100.0) {
+                break 'reset;
+            }
+
+            print_auto_pause(&mut stdout, config.pause_interval);
+
             p = curr_pos;
+            if input::is_stdin_waiting(Duration::from_secs(2)) {
+                break 'countdown;
+            }
+            start = std::time::Instant::now();
         }
         elapsed = std::time::Instant::now() - start;
     }
+
+    Ok(())
+}
+
+fn print_auto_pause(stdout: &mut std::io::Stdout, remaining: Duration) {
+    let remaining_str = format!("{:.2}s", remaining.as_secs_f32());
+    execute!(
+        stdout,
+        Clear(ClearType::CurrentLine),
+        Print("Status:".bold().dim()),
+        Print(" auto-pausing for ".dim()),
+        SetForegroundColor(Color::Yellow),
+        Print(remaining_str),
+        ResetColor,
+        MoveToColumn(0),
+    )
+    .expect("should be able to write to stdout");
 }
 
 fn print_header(stdout: &mut std::io::Stdout) {
